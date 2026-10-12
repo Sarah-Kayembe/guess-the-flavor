@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A party game where friends guess a flavor before it is revealed.">
+<title>Guess the Flavor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap">
+<style>
+/* Layout: one narrow column like a phone game, the mystery treat as the hero, guesses as flip cards below */
+:root {
+  --bg: #F6F0FB;
+  --panel: #FFFFFF;
+  --line: #E6DCF1;
+  --ink: #2B1F38;
+  --soft: #6B5D7C;
+  --accent: #8B5CF6;
+  --accent-ink: #FFFFFF;
+  --good: #3E9A5F;
+  --bad: #D2496E;
+  --wood: #D9B07E;
+  --wrap-a: #FFFFFF;
+  --wrap-b: #EDE3F8;
+  --steam: #B9A9CC;
+  --display: "Bagel Fat One", "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
+  --body: "Bricolage Grotesque", -apple-system, "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #181221; --panel: #221A2E; --line: #352A45; --ink: #F3ECFB; --soft: #B3A6C4;
+    --accent: #A47BFF; --accent-ink: #1A1224; --good: #5CC384; --bad: #F06A90; --wood: #B8925F;
+    --wrap-a: #2E2440; --wrap-b: #3A2E50; --steam: #5E4F73; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #181221; --panel: #221A2E; --line: #352A45; --ink: #F3ECFB; --soft: #B3A6C4;
+  --accent: #A47BFF; --accent-ink: #1A1224; --good: #5CC384; --bad: #F06A90; --wood: #B8925F;
+  --wrap-a: #2E2440; --wrap-b: #3A2E50; --steam: #5E4F73; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.45; }
+#app { max-width: 560px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 48px; display: flex; flex-direction: column; gap: 18px; }
+h1, h2 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap: balance; letter-spacing: 0.01em; }
+h1 { font-size: clamp(2.4rem, 9vw, 3.4rem); line-height: 1; }
+h2 { font-size: 1.5rem; line-height: 1.1; }
+p { margin: 0; }
+.soft { color: var(--soft); }
+.label { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--soft); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.grow { flex: 1 1 160px; min-width: 0; }
+button { font: inherit; cursor: pointer; border: 0; border-radius: 999px; padding: 12px 20px; font-weight: 800; background: var(--accent); color: var(--accent-ink); transition: transform .12s ease, opacity .12s; }
+button:hover { transform: translateY(-1px); }
+button:active { transform: translateY(1px); }
+button.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+button.small { padding: 7px 14px; font-size: 0.85rem; }
+button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+input, select { font: inherit; color: var(--ink); background: var(--bg); border: 1.5px solid var(--line); border-radius: 14px; padding: 11px 14px; width: 100%; min-width: 0; }
+input.code { text-transform: uppercase; letter-spacing: 0.3em; font-weight: 800; text-align: center; font-size: 1.2rem; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.codechip { font-family: var(--display); font-size: 1.4rem; letter-spacing: 0.15em; background: var(--panel); border: 1.5px dashed var(--accent); color: var(--accent); padding: 4px 14px; border-radius: 12px; }
+
+/* segmented mode switch */
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: var(--bg); border: 1.5px solid var(--line); border-radius: 18px; padding: 5px; }
+.seg button { background: transparent; color: var(--ink); border-radius: 14px; padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; align-items: center; }
+.seg button small { font-weight: 600; color: var(--soft); font-size: .78rem; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.seg button[aria-pressed="true"] small { color: var(--accent-ink); opacity: .85; }
+
+/* popsicle */
+.pop { --c: #8B5CF6; position: relative; width: var(--w, 70px); height: calc(var(--w, 70px) * 1.55); flex: none; }
+.pop .ice { position: absolute; inset: 0 0 26% 0; background: var(--c); border-radius: 50% 50% 14% 14% / 32% 32% 8% 8%; overflow: hidden; }
+.pop .ice::before { content: ""; position: absolute; left: 18%; top: 14%; width: 14%; height: 58%; background: rgba(255,255,255,.35); border-radius: 999px; }
+.pop .stick { position: absolute; left: 50%; bottom: 0; width: 22%; height: 34%; transform: translateX(-50%); background: var(--wood); border-radius: 0 0 999px 999px; }
+.pop.bitten .ice { -webkit-mask: radial-gradient(circle at 88% 6%, transparent 22%, #000 22.5%); mask: radial-gradient(circle at 88% 6%, transparent 22%, #000 22.5%); }
+
+/* mug, for hot drinks */
+.mug { --c: #8B5CF6; position: relative; width: var(--w, 70px); height: calc(var(--w, 70px) * 1.55); flex: none; }
+.mug .cup { position: absolute; left: 4%; right: 24%; bottom: 4%; height: 52%; background: var(--c); border-radius: 8% 8% 34% 34% / 10% 10% 40% 40%; overflow: hidden; }
+.mug .cup::before { content: ""; position: absolute; left: 14%; top: 16%; width: 12%; height: 52%; background: rgba(255,255,255,.3); border-radius: 999px; }
+.mug .handle { position: absolute; right: 4%; bottom: 20%; width: 30%; height: 26%; border: calc(var(--w, 70px) * .07) solid var(--c); border-left: 0; border-radius: 0 999px 999px 0; }
+.mug .steam { position: absolute; left: 4%; right: 24%; top: 8%; height: 32%; display: flex; justify-content: center; gap: 16%; }
+.mug .steam i { display: block; width: calc(var(--w, 70px) * .06); min-width: 2px; height: 100%; border-radius: 999px; background: var(--steam); transform: skewX(-12deg); }
+.mug .steam i:nth-child(2) { height: 80%; margin-top: 10%; transform: skewX(12deg); }
+.mug.bitten .steam i { animation: steam 2.4s ease-in-out infinite; }
+@keyframes steam { 0%, 100% { opacity: .9; transform: translateY(0) skewX(-12deg); } 50% { opacity: .4; transform: translateY(-6%) skewX(10deg); } }
+
+.wrapper { position: absolute; inset: -4% -8% 22% -8%; border-radius: 16px; background: repeating-linear-gradient(135deg, var(--wrap-a) 0 14px, var(--wrap-b) 14px 28px); border: 2px solid var(--line); display: grid; place-items: center; font-family: var(--display); color: var(--accent); font-size: calc(var(--w, 70px) * .7); box-shadow: 0 6px 18px rgba(60, 30, 90, .12); }
+.mug .wrapper { inset: -2% -6% 0 -6%; }
+.wrapper::before, .wrapper::after { content: ""; position: absolute; left: 6%; right: 6%; height: 8px; background: repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 12px); }
+.wrapper::before { top: 4px; } .wrapper::after { bottom: 4px; }
+.wrapper.tear { animation: tear 1s cubic-bezier(.5,-0.3,.6,1) forwards; }
+@keyframes tear { 0% { transform: none; } 30% { transform: rotate(-4deg) translateY(-6px); } 100% { transform: translate(140%, -60%) rotate(28deg); opacity: 0; } }
+.wrapper.gone { display: none; }
+.unwrap { background: transparent; padding: 0; border-radius: 22px; display: grid; place-items: center; }
+.unwrap .wrapper { animation: wiggle 2.6s ease-in-out infinite; }
+@keyframes wiggle { 0%, 80%, 100% { transform: rotate(0); } 85% { transform: rotate(-5deg); } 90% { transform: rotate(5deg); } 95% { transform: rotate(-3deg); } }
+
+.stage { display: grid; place-items: center; padding: 18px 0 6px; }
+.stage .pop, .stage .mug { --w: 120px; }
+.verdict { text-align: center; display: flex; flex-direction: column; gap: 6px; }
+.verdict .big, .big { font-family: var(--display); font-size: 2rem; line-height: 1.05; }
+.mid { font-family: var(--display); font-size: 1.35rem; line-height: 1.1; }
+
+.flavors { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.flavor { background: var(--bg); color: var(--ink); border: 2px solid var(--line); border-radius: 18px; padding: 12px 6px 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; font-weight: 700; font-size: 0.9rem; text-align: center; overflow-wrap: anywhere; }
+.flavor .pop, .flavor .mug { --w: 34px; }
+.flavor[aria-pressed="true"] { border-color: var(--accent); background: var(--panel); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 6px 6px 12px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); font-weight: 600; font-size: .9rem; max-width: 100%; }
+.dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); flex: none; }
+.chip button { background: transparent; color: var(--soft); padding: 2px 8px; }
+
+.players { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.card { perspective: 600px; min-height: 92px; }
+.card .in { position: relative; width: 100%; height: 100%; min-height: 92px; transition: transform .6s cubic-bezier(.3,1.4,.5,1); transform-style: preserve-3d; }
+.card.flip .in { transform: rotateY(180deg); }
+.card .face { position: absolute; inset: 0; border-radius: 16px; border: 1.5px solid var(--line); background: var(--bg); padding: 10px 12px; display: flex; flex-direction: column; justify-content: center; gap: 4px; backface-visibility: hidden; -webkit-backface-visibility: hidden; min-width: 0; }
+.card .back { transform: rotateY(180deg); }
+.card .who { font-weight: 800; overflow-wrap: anywhere; }
+.card .what { font-size: .9rem; color: var(--soft); overflow-wrap: anywhere; }
+.card .back.right { border-color: var(--good); background: color-mix(in srgb, var(--good) 12%, var(--bg)); }
+.card .back.wrong { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, var(--bg)); }
+.tag { font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.tag.ok { color: var(--good); } .tag.no { color: var(--bad); } .tag.wait { color: var(--soft); }
+.you { font-size: .7rem; font-weight: 800; color: var(--accent); margin-left: 4px; }
+
+.board { display: flex; flex-direction: column; gap: 8px; }
+.board .line { display: flex; align-items: center; gap: 10px; }
+.board .rank { width: 24px; font-family: var(--display); color: var(--soft); font-variant-numeric: tabular-nums; }
+.board .name { flex: 1; min-width: 0; font-weight: 700; overflow-wrap: anywhere; }
+.board .pts { font-family: var(--display); font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+.history { display: flex; gap: 6px; flex-wrap: wrap; }
+.history .pop, .history .mug { --w: 20px; }
+
+.hero { display: flex; flex-direction: column; gap: 14px; padding-top: 8px; }
+.hero .lineup { display: flex; gap: 10px; align-items: flex-end; overflow: hidden; padding-top: 6px; }
+.hero .lineup > :nth-child(odd) { transform: rotate(-6deg); }
+.hero .lineup > :nth-child(even) { transform: rotate(5deg) translateY(-6px); }
+.note { font-size: .88rem; color: var(--soft); }
+.modecard { background: var(--panel); color: var(--ink); border: 2px solid var(--line); border-radius: 22px; padding: 18px; display: flex; gap: 18px; align-items: center; text-align: left; font-weight: 400; }
+.modecard:hover { border-color: var(--accent); }
+.modeart { display: flex; gap: 6px; align-items: flex-end; flex: none; }
+.modetext { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.clues { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.clue { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: var(--bg); border: 1.5px solid var(--line); font-weight: 600; animation: cluein .4s ease both; }
+.clue > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.clue.hidden { color: var(--soft); border-style: dashed; font-weight: 400; animation: none; }
+.clue .cn { font-family: var(--display); color: var(--accent); width: 18px; text-align: center; flex: none; }
+.clue .pts { font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--soft); flex: none; }
+@keyframes cluein { from { transform: translateY(6px); } to { transform: none; } }
+.err { color: var(--bad); font-weight: 600; font-size: .9rem; }
+.local-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.local-row .n { flex: 1 1 110px; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.local-row select { flex: 2 1 160px; width: auto; }
+@media (prefers-reduced-motion: reduce) {
+  .wrapper.tear { animation: none; display: none; }
+  .unwrap .wrapper, .mug.bitten .steam i { animation: none; }
+  .card .in, button { transition: none; }
+}
+</style>
+</head>
+<body>
+
+
+<div id="app"></div>
+
+<script>
+(() => {
+  const COLORS = {
+    "strawberry": "#E0475B", "orange": "#F08A2B", "grape": "#8B5CF6", "lime": "#7BC043",
+    "cherry": "#B3123A", "blue raspberry": "#3B8FE0", "lemon": "#F2C94C", "mango": "#F5A623",
+    "watermelon": "#F2667A", "pineapple": "#E8C547", "coconut": "#EDE6D6", "chocolate": "#7A4E35",
+    "root beer": "#6B3E26", "banana": "#F6E27A", "green apple": "#8CCB5E", "peach": "#F7A97B",
+    "bubble gum": "#F49AC1", "licorice": "#2B2B2B", "cola": "#5A3524", "ginger ale": "#E9C46A",
+    "cream soda": "#F3DDB3", "lemon-lime": "#B9D84A", "fruit punch": "#D94155", "cotton candy": "#B9A6F2",
+    "tangerine": "#F28C28", "pink lemonade": "#F7A1B5", "kiwi": "#8DB840", "raspberry": "#C2185B",
+    "classic": "#6B4226", "peppermint": "#E8A0A8", "salted caramel": "#C68642", "mexican spiced": "#8B3A1A",
+    "marshmallow": "#EFE6DA", "white chocolate": "#EEDDBB", "mint": "#6FCF97", "hazelnut": "#8E5B3A",
+    "chamomile": "#F2D16B", "earl grey": "#9C7A5B", "green": "#8DB860", "chai": "#B07A4F",
+    "hibiscus": "#C2185B", "ginger": "#E3A857", "pumpkin spice": "#D9772B", "apple cider": "#C9822E"
+  };
+  const PRESETS = {
+    "Popsicles": { it: "pop", fl: ["Strawberry", "Orange", "Grape", "Lime", "Cherry", "Blue Raspberry", "Lemon", "Mango", "Watermelon", "Pineapple"] },
+    "Jelly beans": { it: "pop", fl: ["Cherry", "Lemon", "Green Apple", "Licorice", "Watermelon", "Bubble Gum", "Coconut", "Peach", "Cotton Candy", "Tangerine"] },
+    "Soda": { it: "pop", fl: ["Cola", "Root Beer", "Ginger Ale", "Cream Soda", "Lemon-Lime", "Orange", "Grape", "Fruit Punch"] },
+    "Hot cocoa": { it: "mug", fl: ["Classic", "Peppermint", "Salted Caramel", "Mexican Spiced", "Marshmallow", "White Chocolate", "Mint", "Hazelnut"] },
+    "Tea": { it: "mug", fl: ["Chamomile", "Earl Grey", "Peppermint", "Green", "Chai", "Hibiscus", "Ginger", "Lemon"] },
+    "Fall drinks": { it: "mug", fl: ["Pumpkin Spice", "Apple Cider", "Chai", "Salted Caramel", "Hazelnut", "Classic"] }
+  };
+
+  // three clues per flavor, from vague to obvious (mystery mode)
+  const CLUES = {
+    "strawberry": ["Red and summery", "It wears its seeds on the outside", "Goes with cream and shortcake"],
+    "orange": ["Bright and citrusy", "You peel it before you eat it", "It has the same name as its color"],
+    "grape": ["Purple and sweet", "Grows in bunches on a vine", "Dry it out and it becomes a raisin"],
+    "lime": ["Green and sour", "Squeezed over tacos", "A small green citrus"],
+    "cherry": ["Deep red and sweet", "Has a pit in the middle", "Sits on top of a sundae"],
+    "blue raspberry": ["A color you never see in nature", "It turns your tongue blue", "A berry, but blue"],
+    "lemon": ["Yellow and sour", "Kids sell its drink at a stand", "A yellow citrus"],
+    "mango": ["Tropical and orange inside", "Has one big flat seed", "Often cut into a 'hedgehog' to eat"],
+    "watermelon": ["A picnic favorite", "Green outside, pink inside", "Heavy, juicy and full of black seeds"],
+    "pineapple": ["Tropical and tangy", "Spiky on the outside", "People argue about it on pizza"],
+    "green apple": ["Crunchy and tart", "One a day keeps the doctor away", "Not the red kind"],
+    "licorice": ["People love it or hate it", "Comes in long black ropes", "Tastes like anise"],
+    "bubble gum": ["A bright pink flavor", "You can blow bubbles with it", "Chewed, never swallowed"],
+    "coconut": ["Tropical and creamy", "Hard, hairy shell", "Grows on palm trees"],
+    "peach": ["Soft and fuzzy", "Georgia is famous for it", "Orange-pink skin with a pit inside"],
+    "cotton candy": ["A carnival treat", "Spun from sugar", "Looks like a fluffy pink cloud"],
+    "tangerine": ["A citrus that peels easily", "The orange's smaller cousin", "Also the name of a shade of orange"],
+    "cola": ["Dark and fizzy", "Famous red can", "Brown soda with a secret recipe"],
+    "root beer": ["Fizzy, with no alcohol", "Makes a float with ice cream", "A 'beer' made from roots"],
+    "ginger ale": ["Helps an upset stomach", "Pale and fizzy", "Made with a spicy root"],
+    "cream soda": ["Smooth and sweet", "Tastes like vanilla", "A soda named after dairy"],
+    "lemon-lime": ["Clear and fizzy", "Two citrus fruits together", "Yellow and green in one can"],
+    "fruit punch": ["Red and sweet", "A mix of many fruits", "Served in a big bowl at parties"],
+    "classic": ["Warm and comforting", "The original, nothing added", "Just plain chocolate"],
+    "peppermint": ["Tastes like the holidays", "Red and white stripes", "Candy cane flavor"],
+    "salted caramel": ["Sweet with a salty kick", "Golden brown and gooey", "Melted sugar plus a pinch of salt"],
+    "mexican spiced": ["It has a little heat", "Cinnamon and a hint of chili", "Inspired by Aztec chocolate"],
+    "marshmallow": ["Soft and fluffy", "Toasted over a campfire", "Floats on top of the cup"],
+    "white chocolate": ["Creamy and pale", "Made from cocoa butter", "Chocolate, but not brown"],
+    "mint": ["Cool and fresh", "Often paired with chocolate chips", "A green leafy herb"],
+    "hazelnut": ["Nutty and toasty", "The nut in a famous chocolate spread", "A small round nut"],
+    "chamomile": ["Calm and sleepy", "Made from tiny daisy-like flowers", "A bedtime tea"],
+    "earl grey": ["A British favorite", "Flavored with bergamot", "A tea named after a nobleman"],
+    "green": ["Light and grassy", "Very popular in Japan", "A tea named after a color"],
+    "chai": ["Warm and spiced", "Cardamom, cinnamon and ginger", "Spiced milk tea from India"],
+    "hibiscus": ["Tart and deep red", "Made from a tropical flower", "A big red flower, brewed"],
+    "ginger": ["Spicy and warming", "A knobby root", "The flavor in gingerbread"],
+    "pumpkin spice": ["The taste of fall", "Cinnamon, nutmeg and clove", "The famous orange-gourd latte"],
+    "apple cider": ["Warm and fruity", "Made by pressing fruit", "Hot drink made from apples"]
+  };
+  // flavors people type in get word-game clues instead
+  function cluesFor(name) {
+    const k = String(name || "").trim().toLowerCase();
+    if (CLUES[k]) return CLUES[k];
+    const letters = k.replace(/[^a-z]/g, "").length;
+    const words = k.split(/\s+/).filter(Boolean).length;
+    return [
+      words > 1 ? `It's ${words} words, ${letters} letters in all` : `It has ${letters} letters`,
+      `It ends with "${k.slice(-1).toUpperCase()}"`,
+      `It starts with "${k.slice(0, 1).toUpperCase()}"`
+    ];
+  }
+  const MAX_CLUES = 3;
+  function pointsFor(g, gc) { return g.md === "mystery" ? Math.max(1, MAX_CLUES + 1 - (gc || 1)) : 1; }
+
+  const app = document.getElementById("app");
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+
+  const S = {
+    screen: "home",
+    nick: store.get("fg-nick") || "",
+    code: "",
+    online: false,
+    taster: false,
+    game: null,
+    myGuess: null,
+    myRound: -1,
+    myGc: 1,
+    pending: null,         // "host" or "local" while choosing a mode
+    // Online play needs the Claude artifact runtime. Outside it, only the one-phone game shows.
+    room: window.claude ? undefined : null, // undefined = still checking, null = unavailable
+    named: null,
+    peers: [],
+    roomErr: "",
+    joinErr: "",
+    joinCode: "",
+    local: { players: [], guesses: {}, next: 1 },
+    seenReveal: -1,
+    flipped: -1,
+    it: "pop"
+  };
+
+  function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+  function colorOf(name) {
+    const k = String(name || "").trim().toLowerCase();
+    if (COLORS[k]) return COLORS[k];
+    let h = 0; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) % 360;
+    return `hsl(${h} 70% 58%)`;
+  }
+  // a treat drawing: popsicle for cold things, mug for hot ones
+  function popHTML(name, opts = {}) {
+    const c = name ? colorOf(name) : "#8B5CF6";
+    const it = opts.it || S.it;
+    const style = `--c:${c}${opts.w ? `;--w:${opts.w}px` : ""}`;
+    const wrap = opts.wrapper ? `<div class="wrapper ${opts.wrapper}">?</div>` : "";
+    if (it === "mug") {
+      return `<div class="mug ${opts.bitten ? "bitten" : ""}" style="${style}" aria-hidden="true"><div class="steam"><i></i><i></i><i></i></div><div class="handle"></div><div class="cup"></div>${wrap}</div>`;
+    }
+    return `<div class="pop ${opts.bitten ? "bitten" : ""}" style="${style}" aria-hidden="true"><div class="ice"></div><div class="stick"></div>${wrap}</div>`;
+  }
+  function randCode() {
+    const L = "abcdefghjkmnpqrstuvwxyz";
+    let s = ""; for (let i = 0; i < 4; i++) s += L[Math.floor(Math.random() * L.length)];
+    return s;
+  }
+  function pick(list) { return list[Math.floor(Math.random() * list.length)]; }
+  // md: "real" (someone tastes a real treat) or "mystery" (the app hides a random flavor)
+  function newGame(md) {
+    const g = { r: 1, ph: "g", md: md || "real", nm: "Popsicles", it: "pop", fl: PRESETS["Popsicles"].fl.slice(), ans: null, sec: null, cl: 0, cv: [], gs: null, pl: [], h: [] };
+    ensureSecret(g, true);
+    return g;
+  }
+  // mystery mode: hide a flavor and show its first clue
+  function ensureSecret(g, fresh) {
+    if (g.md !== "mystery") { g.sec = null; g.cl = 0; g.cv = []; return; }
+    if (fresh || !g.sec || !g.fl.includes(g.sec)) {
+      g.sec = g.fl.length ? pick(g.fl) : null;
+      g.cl = g.sec ? 1 : 0;
+      g.cv = g.sec ? cluesFor(g.sec).slice(0, 1) : [];
+    }
+  }
+
+  // ---------- derived views ----------
+  function currentGame() {
+    if (!S.online || S.taster) return S.game;
+    const t = S.peers.find(p => p.presence && p.presence.role === "t" && !p.sameTab);
+    return t && t.presence.g && typeof t.presence.g === "object" ? t.presence.g : null;
+  }
+  function tasterName() {
+    if (S.taster) return S.nick || "You";
+    const t = S.peers.find(p => p.presence && p.presence.role === "t" && !p.sameTab);
+    return t ? String(t.presence.nick || "The host").slice(0, 40) : "";
+  }
+  function mePeer() { const me = S.peers.find(p => p.sameTab); return me ? me.peer : "me"; }
+  // everyone guessing this round, with their current guess
+  function guessers(g) {
+    if (!S.online) {
+      return S.local.players.map(p => {
+        const lg = S.local.guesses[p.id];
+        return { id: p.id, nick: p.nick, guess: lg ? lg.f : null, gc: lg ? lg.gc : 1, me: false };
+      });
+    }
+    const list = S.peers
+      .filter(p => p.presence && p.presence.role === "p")
+      .map(p => {
+        const ok = g && p.presence.gr === g.r && typeof p.presence.guess === "string";
+        return {
+          id: p.peer,
+          nick: String(p.presence.nick || "Someone").slice(0, 40),
+          guess: ok ? p.presence.guess.slice(0, 40) : null,
+          gc: ok ? Math.min(MAX_CLUES, Math.max(1, +p.presence.gc || 1)) : 1,
+          me: !!p.sameTab
+        };
+      });
+    // in mystery mode nobody knows the answer, so the host guesses too
+    if (S.taster && g && g.md === "mystery") {
+      const mine = S.myRound === g.r ? S.myGuess : null;
+      list.unshift({ id: mePeer(), nick: S.nick || "Host", guess: mine, gc: S.myGc, me: true });
+    }
+    return list;
+  }
+
+  // ---------- room plumbing ----------
+  function pushPresence() {
+    if (!S.named) return;
+    const p = S.taster
+      ? { role: "t", nick: S.nick, g: S.game }
+      : { role: "p", nick: S.nick, guess: S.myGuess, gr: S.myRound, gc: S.myGc };
+    S.named.presence(p).catch(() => {});
+  }
+  async function enterRoom(code) {
+    const named = await S.room.join("pop-" + code);
+    S.named = named;
+    named.onPeers(ch => { S.peers = ch.peers; render(); }, () => { S.roomErr = "Lost the connection to this game. You can keep playing on this phone."; render(); });
+    pushPresence();
+  }
+  async function leaveRoom() {
+    if (S.named) { try { await S.named.leave(); } catch (e) {} }
+    S.named = null; S.peers = [];
+  }
+
+  // ---------- actions ----------
+  const act = {
+    host() {
+      if (!S.nick.trim()) return focusNick();
+      S.pending = "host"; S.joinErr = ""; S.screen = "mode"; render();
+    },
+    local() {
+      if (!S.nick.trim()) S.nick = "Host";
+      S.pending = "local"; S.joinErr = ""; S.screen = "mode"; render();
+    },
+    async chooseMode(md) {
+      store.set("fg-mode", md);
+      S.taster = true; S.game = newGame(md); S.myGuess = null; S.myRound = -1; S.myGc = 1;
+      if (S.pending === "host") {
+        S.online = true; S.code = randCode();
+        try { await enterRoom(S.code); S.screen = "game"; }
+        catch (e) { S.joinErr = "Couldn't open an online game right now. Try playing on this phone instead."; S.online = false; S.screen = "home"; }
+      } else {
+        S.online = false; S.code = "";
+        S.local = { players: [], guesses: {}, next: 1 };
+        S.screen = "game";
+      }
+      render();
+    },
+    async join() {
+      if (!S.nick.trim()) return focusNick();
+      const code = (S.joinCode || "").trim().toLowerCase();
+      if (!/^[a-z]{4}$/.test(code)) { S.joinErr = "Game codes are 4 letters."; return render(); }
+      S.taster = false; S.online = true; S.code = code; S.myGuess = null; S.myRound = -1; S.joinErr = "";
+      try { await enterRoom(code); S.screen = "game"; }
+      catch (e) { S.joinErr = "Couldn't join that game. Check the code and try again."; S.online = false; }
+      render();
+    },
+    async home() { await leaveRoom(); S.screen = "home"; S.game = null; S.roomErr = ""; S.pending = null; render(); },
+    nextClue() {
+      const g = S.game; if (!g || g.md !== "mystery" || g.ph !== "g" || !g.sec || g.cl >= MAX_CLUES) return;
+      g.cl += 1; g.cv = cluesFor(g.sec).slice(0, g.cl); pushPresence(); render();
+    },
+    setName(v) { const g = S.game; if (!g) return; g.nm = String(v || "").slice(0, 30); pushPresence(); },
+    setItem(it) { const g = S.game; if (!g) return; g.it = it; pushPresence(); render(); },
+    guess(name) {
+      const g = currentGame(); if (!g || g.ph !== "g") return;
+      if (S.myGuess !== name || S.myRound !== g.r) S.myGc = g.cl || 1;
+      S.myGuess = name; S.myRound = g.r; pushPresence(); render();
+    },
+    addFlavor(name) {
+      name = String(name || "").trim().replace(/\s+/g, " ").slice(0, 24);
+      const g = S.game;
+      if (!name || g.fl.length >= 16) return;
+      if (g.fl.some(f => f.toLowerCase() === name.toLowerCase())) return;
+      g.fl.push(name); ensureSecret(g); pushPresence(); render();
+    },
+    removeFlavor(i) { const g = S.game; g.fl.splice(i, 1); ensureSecret(g); pushPresence(); render(); },
+    preset(key) {
+      const g = S.game, p = PRESETS[key];
+      g.fl = p.fl.slice(); g.it = p.it; g.nm = key; ensureSecret(g); pushPresence(); render();
+    },
+    reveal(ans) {
+      const g = S.game; if (!g || g.ph !== "g" || !ans) return;
+      const gs = guessers(g);
+      g.ans = ans; g.ph = "v";
+      g.gs = gs.map(x => ({ i: x.id, n: x.nick, g: x.guess, p: x.guess === ans ? pointsFor(g, x.gc) : 0 }));
+      for (const x of g.gs) {
+        let row = g.pl.find(p => p.i === x.i);
+        if (!row) { row = { i: x.i, n: x.n, s: 0 }; g.pl.push(row); }
+        row.n = x.n;
+        row.s += x.p;
+      }
+      g.pl = g.pl.slice(-24);
+      g.h = g.h.concat([{ f: ans, it: g.it }]).slice(-12);
+      g.sec = null;
+      pushPresence(); render();
+    },
+    unwrap() { const g = S.game; if (g && g.md === "mystery") act.reveal(g.sec); },
+    next() {
+      const g = S.game; g.r += 1; g.ph = "g"; g.ans = null; g.gs = null;
+      S.local.guesses = {}; S.myGuess = null; S.myGc = 1;
+      ensureSecret(g, true);
+      pushPresence(); render();
+    },
+    addPlayer(name) {
+      name = String(name || "").trim().slice(0, 30);
+      if (!name || S.local.players.length >= 12) return;
+      S.local.players.push({ id: "l" + (S.local.next++), nick: name }); render();
+    },
+    removePlayer(id) { S.local.players = S.local.players.filter(p => p.id !== id); delete S.local.guesses[id]; render(); },
+    setLocalGuess(id, val) {
+      const g = S.game;
+      if (val) S.local.guesses[id] = { f: val, gc: (g && g.cl) || 1 }; else delete S.local.guesses[id];
+      render();
+    }
+  };
+  function focusNick() { S.joinErr = "Add your name first so your friends know who's guessing."; render(); const n = document.getElementById("nick"); if (n) n.focus(); }
+
+  // ---------- screens ----------
+  function homeHTML() {
+    const roomState = S.room === undefined ? "checking" : S.room ? "ok" : "none";
+    const lineup = [["Strawberry", "pop"], ["Peppermint", "mug"], ["Lime", "pop"], ["Mango", "pop"], ["Chai", "mug"], ["Grape", "pop"], ["Lemon", "pop"]]
+      .map(([f, it]) => popHTML(f, { w: 44, it })).join("");
+    return `
+      <section class="hero">
+        <div class="lineup">${lineup}</div>
+        <h1>Guess the Flavor</h1>
+        <p class="soft">Everyone locks in a guess, then the flavor is revealed and the guesses flip. Play with a real treat someone tastes, or a mystery one the game hides for you.</p>
+      </section>
+      <section class="panel">
+        <label class="label" for="nick">Your name</label>
+        <input id="nick" maxlength="30" placeholder="Sarah" value="${esc(S.nick)}" autocomplete="nickname">
+        ${S.joinErr ? `<p class="err" role="alert">${esc(S.joinErr)}</p>` : ""}
+      </section>
+      <section class="panel">
+        <h2>Play on one phone</h2>
+        <p class="soft">Perfect for a FaceTime call. Your friends shout their guesses and you log them.</p>
+        <button id="local" class="ghost">Play on this phone</button>
+      </section>
+      ${roomState === "none" ? "" : `
+      <section class="panel">
+        <h2>Play together online</h2>
+        <p class="soft">Everyone opens this page on their own phone. The host starts a game and reads the code out loud.</p>
+        ${roomState === "checking" ? `<p class="note">Checking whether online games work here…</p>` : ""}
+        <button id="host" ${roomState !== "ok" ? "disabled" : ""}>Host a game</button>
+        <div class="row">
+          <input id="joincode" class="code grow" maxlength="4" placeholder="CODE" value="${esc(S.joinCode)}" aria-label="Game code" ${roomState !== "ok" ? "disabled" : ""}>
+          <button id="join" class="ghost" ${roomState !== "ok" ? "disabled" : ""}>Join a game</button>
+        </div>
+      </section>`}`;
+  }
+
+  function modeHTML() {
+    const hosting = S.pending === "host";
+    return `
+      <div class="topbar"><button class="ghost small" id="home">← Back</button><span class="label">${hosting ? "Hosting online" : "One-phone game"}</span></div>
+      <section class="hero"><h1>How are you playing?</h1><p class="soft">Pick one. You can always leave and start a new game with the other.</p></section>
+      <button class="modecard" id="pick-real">
+        <span class="modeart">${popHTML("Strawberry", { w: 54, it: "pop", bitten: true })}${popHTML("Chai", { w: 54, it: "mug", bitten: true })}</span>
+        <span class="modetext"><span class="mid">We have the treats</span><span class="soft">Someone grabs a real treat without looking. Everyone guesses, then they taste it and tap what it was.</span></span>
+      </button>
+      <button class="modecard" id="pick-mystery">
+        <span class="modeart">${popHTML(null, { w: 54, it: "pop", wrapper: "on" })}</span>
+        <span class="modetext"><span class="mid">Mystery</span><span class="soft">No treats needed. The game hides a flavor and gives clues one at a time, like charades. Guess early for more points.</span></span>
+      </button>`;
+  }
+
+  function cluesHTML(g) {
+    if (g.md !== "mystery") return "";
+    const shown = g.ph === "v" ? cluesFor(g.ans) : (g.cv || []);
+    const items = [];
+    for (let i = 0; i < MAX_CLUES; i++) {
+      const c = shown[i];
+      items.push(`<li class="clue ${c ? "" : "hidden"}"><span class="cn">${i + 1}</span><span>${c ? esc(String(c).slice(0, 120)) : "Hidden clue"}</span>${g.ph === "g" ? `<span class="pts">${MAX_CLUES - i} pt${MAX_CLUES - i > 1 ? "s" : ""}</span>` : ""}</li>`);
+    }
+    return `<ol class="clues" aria-label="Clues">${items.join("")}</ol>`;
+  }
+
+  function stageHTML(g) {
+    const revealed = g.ph === "v";
+    const mystery = g.md === "mystery";
+    let wrapperCls = "on";
+    if (revealed) wrapperCls = S.seenReveal === g.r ? "gone" : "tear";
+    let pop = popHTML(revealed ? g.ans : null, { wrapper: wrapperCls, bitten: revealed });
+    const canUnwrap = mystery && !revealed && S.taster && g.sec;
+    if (canUnwrap) pop = `<button class="unwrap" id="unwrap" aria-label="Unwrap the mystery flavor">${pop}</button>`;
+    const what = esc(g.nm || "Mystery treat");
+    let verdict;
+    if (revealed) {
+      const correct = (g.gs || []).filter(x => x.g === g.ans).length;
+      const total = (g.gs || []).filter(x => x.g).length;
+      verdict = `<p class="label">Round ${g.r} · ${what}</p><p class="big">It was ${esc(g.ans)}!</p><p class="soft">${total ? `${correct} of ${total} guessed it` : "Nobody guessed this round"}</p>`;
+    } else if (mystery) {
+      const now = pointsFor(g, g.cl);
+      const sub = S.taster
+        ? `A correct guess right now is worth ${now} point${now > 1 ? "s" : ""}`
+        : `Guess now for ${now} point${now > 1 ? "s" : ""}. ${esc(tasterName() || "The host")} reveals the next clue.`;
+      verdict = `<p class="label">Round ${g.r} · ${what} · Mystery</p><p class="big">What's under the wrapper?</p><p class="soft">${sub}</p>`;
+    } else {
+      const who = S.taster ? "you" : esc(tasterName() || "the taster");
+      verdict = `<p class="label">Round ${g.r} · ${what}</p><p class="big">What flavor is it?</p><p class="soft">Waiting for ${who} to take a taste</p>`;
+    }
+    return `<section class="panel"><div class="stage">${pop}</div><div class="verdict">${verdict}</div>${cluesHTML(g)}</section>`;
+  }
+
+  function cardsHTML(g, list) {
+    if (!list.length) return `<p class="note">${S.online ? "No guessers yet. Share the code so friends can join." : "Add the people guessing below."}</p>`;
+    const revealed = g.ph === "v";
+    const flip = revealed && S.flipped === g.r;
+    return `<div class="players">${list.map(x => {
+      const ok = revealed && x.g && x.g === g.ans;
+      const youTag = x.me ? `<span class="you">YOU</span>` : "";
+      const front = `<div class="face front"><span class="who">${esc(x.n)}${youTag}</span><span class="tag ${x.g ? "ok" : "wait"}">${x.g ? "Locked in" : "Thinking…"}</span></div>`;
+      const back = `<div class="face back ${ok ? "right" : "wrong"}"><span class="who">${esc(x.n)}${youTag}</span><span class="what">${x.g ? esc(x.g) : "No guess"}</span><span class="tag ${ok ? "ok" : "no"}">${ok ? `Got it! +${x.p || 1}` : "Not this time"}</span></div>`;
+      return `<div class="card ${flip ? "flip" : ""}"><div class="in">${front}${back}</div></div>`;
+    }).join("")}</div>`;
+  }
+
+  function boardHTML(g) {
+    if (!g.pl || !g.pl.length) return "";
+    const rows = g.pl.slice().sort((a, b) => b.s - a.s);
+    const hist = (g.h || []).map(h => {
+      const f = typeof h === "string" ? h : h.f, it = typeof h === "string" ? "pop" : h.it;
+      return `<span title="${esc(f)}">${popHTML(f, { bitten: true, it })}</span>`;
+    }).join("");
+    return `<section class="panel"><h2>Scores</h2><div class="board">${rows.map((p, i) => `<div class="line"><span class="rank">${i + 1}</span><span class="name">${esc(p.n)}</span><span class="pts">${p.s}</span></div>`).join("")}</div>${hist ? `<p class="label">Revealed so far</p><div class="history">${hist}</div>` : ""}</section>`;
+  }
+
+  function gameHTML() {
+    const g = currentGame();
+    const top = `<div class="topbar"><button class="ghost small" id="home">← Leave</button>${S.online ? `<span class="row"><span class="label">Game code</span><span class="codechip">${esc(S.code.toUpperCase())}</span></span>` : `<span class="label">One-phone game</span>`}</div>`;
+    const err = S.roomErr ? `<p class="err" role="alert">${esc(S.roomErr)}</p>` : "";
+    if (!g) {
+      return `${top}${err}<section class="panel"><h2>Waiting for the host</h2><p class="soft">You're in game ${esc(S.code.toUpperCase())}. It starts as soon as the host opens it.</p></section>`;
+    }
+    S.it = g.it === "mug" ? "mug" : "pop";
+    const me = mePeer();
+    const list = g.ph === "v"
+      ? (g.gs || []).map(x => ({ n: x.n, g: x.g, p: x.p, me: S.online && x.i === me }))
+      : guessers(g).map(x => ({ n: x.nick, g: x.guess, me: x.me }));
+    const controls = S.taster ? tasterControls(g) : guesserControls(g);
+    return `${top}${err}${stageHTML(g)}${controls}<section class="panel"><h2>${g.ph === "v" ? "The guesses" : "Who's guessing"}</h2>${cardsHTML(g, list)}</section>${boardHTML(g)}${S.taster ? setupHTML(g) : ""}`;
+  }
+
+  function flavorGrid(g, { pressed, idPrefix }) {
+    return `<div class="flavors">${g.fl.map((f, i) => `<button class="flavor" id="${idPrefix}${i}" data-f="${esc(f)}" aria-pressed="${pressed === f}">${popHTML(f)}<span>${esc(f)}</span></button>`).join("")}</div>`;
+  }
+
+  function myGuessPanel(g) {
+    const mine = S.myRound === g.r ? S.myGuess : null;
+    return `<section class="panel"><h2>Your guess</h2><p class="soft">${mine ? `Locked in on ${esc(mine)}. You can change it until the reveal.` : "Tap a flavor to lock it in."}</p>${flavorGrid(g, { pressed: mine, idPrefix: "g-" })}</section>`;
+  }
+
+  function guesserControls(g) {
+    if (g.ph === "v") {
+      const mine = S.myRound === g.r ? S.myGuess : null;
+      const ok = mine && mine === g.ans;
+      return `<section class="panel"><p class="mid">${mine ? (ok ? "You got it! 🎉" : `You guessed ${esc(mine)}.`) : "You sat this one out."}</p><p class="soft">Hang tight for the next round.</p></section>`;
+    }
+    return myGuessPanel(g);
+  }
+
+  function tasterControls(g) {
+    if (g.ph === "v") {
+      return `<section class="panel"><button id="next">${g.md === "mystery" ? "Wrap up a new one" : "Grab the next one"}</button></section>`;
+    }
+    const localBlock = !S.online ? `
+      <section class="panel">
+        <h2>Log the guesses</h2>
+        <p class="soft">Ask everyone for their guess before the reveal.</p>
+        ${S.local.players.map(p => `<div class="local-row"><span class="n">${esc(p.nick)}</span><select id="lg-${p.id}" data-p="${p.id}" aria-label="${esc(p.nick)}'s guess"><option value="">No guess yet</option>${g.fl.map(f => `<option ${S.local.guesses[p.id] && S.local.guesses[p.id].f === f ? "selected" : ""}>${esc(f)}</option>`).join("")}</select><button class="ghost small" data-rm="${p.id}" aria-label="Remove ${esc(p.nick)}">✕</button></div>`).join("")}
+        <div class="row"><input id="newplayer" class="grow" maxlength="30" placeholder="Add a friend's name"><button id="addplayer" class="ghost">Add</button></div>
+      </section>` : "";
+    if (g.md === "mystery") {
+      return `${S.online ? myGuessPanel(g) : ""}${localBlock}
+        <section class="panel">
+          <div class="row">
+            ${g.cl < MAX_CLUES ? `<button id="nextclue" class="grow" ${g.sec ? "" : "disabled"}>Show clue ${g.cl + 1}</button>` : ""}
+            <button id="unwrap2" class="grow ${g.cl < MAX_CLUES ? "ghost" : ""}" ${g.sec ? "" : "disabled"}>Unwrap it</button>
+          </div>
+          ${g.sec ? `<p class="note">${S.online ? "Everyone sees each clue as soon as you show it." : "Read each clue out loud, log the guesses, then show the next one."}</p>` : `<p class="note">Add at least one flavor to play.</p>`}
+        </section>`;
+    }
+    return `${localBlock}
+      <section class="panel">
+        <h2>Tasted it? What was it?</h2>
+        <p class="soft">Tap the real flavor to reveal everyone's guesses.</p>
+        ${flavorGrid(g, { idPrefix: "a-" })}
+      </section>`;
+  }
+
+  function setupHTML(g) {
+    const locked = g.ph !== "g";
+    return `
+      <section class="panel">
+        <h2>Game setup</h2>
+        <p class="note">${g.md === "mystery" ? "Mystery mode. Changing the flavors picks a new secret flavor." : "Real treat mode."}${locked ? "" : ""}</p>
+        <label class="label" for="treatname">What are you guessing?</label>
+        <input id="treatname" maxlength="30" value="${esc(g.nm)}" placeholder="Popsicles, chips, tea…">
+        <p class="label">Show it as</p>
+        <div class="seg" role="group" aria-label="Treat picture">
+          <button id="it-pop" aria-pressed="${g.it !== "mug"}">${popHTML("Strawberry", { w: 22, it: "pop" })}<small>Cold treat</small></button>
+          <button id="it-mug" aria-pressed="${g.it === "mug"}">${popHTML("Classic", { w: 22, it: "mug" })}<small>Hot drink</small></button>
+        </div>
+        <p class="label">Flavors</p>
+        <div class="chips">${g.fl.map((f, i) => `<span class="chip" style="--c:${colorOf(f)}"><span class="dot"></span>${esc(f)}<button data-rmf="${i}" aria-label="Remove ${esc(f)}">✕</button></span>`).join("")}</div>
+        <div class="row"><input id="newflavor" class="grow" maxlength="24" placeholder="Add your own flavor"><button id="addflavor" class="ghost">Add</button></div>
+        <p class="label">Or start from</p>
+        <div class="row">${Object.keys(PRESETS).map(k => `<button class="ghost small" data-preset="${esc(k)}">${esc(k)}</button>`).join("")}</div>
+      </section>`;
+  }
+
+  // ---------- render with focus preservation ----------
+  function render() {
+    const a = document.activeElement;
+    const keep = a && a.id ? { id: a.id, s: a.selectionStart, e: a.selectionEnd } : null;
+    const drafts = {};
+    for (const id of ["newflavor", "newplayer"]) { const el = document.getElementById(id); if (el) drafts[id] = el.value; }
+
+    const g = currentGame();
+    app.innerHTML = S.screen === "home" ? homeHTML() : S.screen === "mode" ? modeHTML() : gameHTML();
+
+    for (const id in drafts) { const el = document.getElementById(id); if (el) el.value = drafts[id]; }
+    if (keep) {
+      const el = document.getElementById(keep.id);
+      if (el) { el.focus(); if (typeof keep.s === "number" && el.setSelectionRange) { try { el.setSelectionRange(keep.s, keep.e); } catch (e) {} } }
+    }
+    if (S.screen === "game" && g && g.ph === "v" && S.seenReveal !== g.r) {
+      S.seenReveal = g.r;
+      const r = g.r;
+      const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      setTimeout(() => {
+        if (S.flipped === r) return;
+        S.flipped = r;
+        app.querySelectorAll(".card").forEach((c, i) => setTimeout(() => c.classList.add("flip"), reduce ? 0 : i * 120));
+      }, reduce ? 0 : 750);
+    }
+    wire();
+  }
+
+  function on(id, ev, fn) { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); }
+  function wire() {
+    on("nick", "input", e => { S.nick = e.target.value.slice(0, 30); store.set("fg-nick", S.nick); });
+    on("joincode", "input", e => { S.joinCode = e.target.value.replace(/[^a-zA-Z]/g, "").slice(0, 4); e.target.value = S.joinCode; });
+    on("joincode", "keydown", e => { if (e.key === "Enter") act.join(); });
+    on("host", "click", () => act.host());
+    on("join", "click", () => act.join());
+    on("local", "click", () => act.local());
+    on("home", "click", () => act.home());
+    on("next", "click", () => act.next());
+    on("unwrap", "click", () => act.unwrap());
+    on("unwrap2", "click", () => act.unwrap());
+    on("pick-real", "click", () => act.chooseMode("real"));
+    on("pick-mystery", "click", () => act.chooseMode("mystery"));
+    on("nextclue", "click", () => act.nextClue());
+    on("it-pop", "click", () => act.setItem("pop"));
+    on("it-mug", "click", () => act.setItem("mug"));
+    on("treatname", "input", e => act.setName(e.target.value));
+    on("treatname", "change", () => render());
+    const addF = () => { const el = document.getElementById("newflavor"); const v = el.value; el.value = ""; act.addFlavor(v); const n = document.getElementById("newflavor"); if (n) n.focus(); };
+    on("addflavor", "click", addF);
+    on("newflavor", "keydown", e => { if (e.key === "Enter") addF(); });
+    const addP = () => { const el = document.getElementById("newplayer"); const v = el.value; el.value = ""; act.addPlayer(v); const n = document.getElementById("newplayer"); if (n) n.focus(); };
+    on("addplayer", "click", addP);
+    on("newplayer", "keydown", e => { if (e.key === "Enter") addP(); });
+    app.querySelectorAll("[id^='g-']").forEach(b => b.addEventListener("click", () => act.guess(b.dataset.f)));
+    app.querySelectorAll("[id^='a-']").forEach(b => b.addEventListener("click", () => act.reveal(b.dataset.f)));
+    app.querySelectorAll("[data-rmf]").forEach(b => b.addEventListener("click", () => act.removeFlavor(+b.dataset.rmf)));
+    app.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => act.preset(b.dataset.preset)));
+    app.querySelectorAll("[data-rm]").forEach(b => b.addEventListener("click", () => act.removePlayer(b.dataset.rm)));
+    app.querySelectorAll("select[data-p]").forEach(s => s.addEventListener("change", () => act.setLocalGuess(s.dataset.p, s.value)));
+  }
+
+  render();
+
+  // light up online play when the room is available
+  (async () => {
+    let room = null;
+    try { room = window.claude && window.claude.use ? await window.claude.use("room") : null; } catch (e) { room = null; }
+    S.room = room;
+    if (S.screen === "home") render();
+  })();
+})();
+</script>
+
+</body>
+</html>
